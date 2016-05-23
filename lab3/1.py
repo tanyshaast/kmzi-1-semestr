@@ -5,16 +5,12 @@ import sys
 marker = 'iddqd'
 
 
-class HideException(Exception):
-    """Базовый класс для ошибок"""
+
+
+
+class ErrorException(Exception):
+    """Базовый класс для ошибок."""
     pass
-
-
-class UsageException(HideException):
-    """Класс для ошибок использования утилиты."""
-
-    def __str__(self):
-        return self.message + '\nUsage: 1.py [bmp image] [any file]'
 
 
 def bin(s):
@@ -49,7 +45,7 @@ def hide(bmp_filename, src_filename):
 
     need = 8 * len(secret) - len(container)
     if need > 0:
-        raise HideException('BMP size is not sufficient for confidential file.'
+        raise ErrorException('BMP size is not sufficient for confidential file.'
                             '\nNeed another %s byte.' % need)
     cbits = byte2bin(container)
     encrypted = []
@@ -66,21 +62,68 @@ def hide(bmp_filename, src_filename):
     bmp.write(''.join(encrypted))
     bmp.close()
 
+def decrypt_char(container):
+    """Поставляет расшифрованные символы.
+    Извлекает из 8 байт младшие биты, формирует из них битовую строку.
+    Переводит из двоичной системы в десятичную.
+    Преобразует число в символ.
+    """
+    sbits = ''
+    for cbits in byte2bin(container):
+        sbits += cbits[-1]
+        if len(sbits) == 8:
+            yield chr(int(sbits, 2))
+            sbits = ''
 
-def main(argv=None):
-    """Запускает процесс скрывания.
-    Обрабатывает исключения при сокрытии файла. Отображает справку
-    по использованию утилиты."""
-    if argv is None:
-        argv = sys.argv
-    try:
-        if len(argv) != 3:
-            raise UsageException('You need specify a BMP and the file '
-                                 'you want to hide.')
-        hide(argv[1], argv[2])
-    except (IOError, HideException), err:
-        print >> sys.stderr, err
-        return 2
+
+def extract(bmp_filename):
+    """Извлекает из BMP скрытый файл, включая его название."""
+    bmp = open(bmp_filename, 'rb')
+    bmp.seek(55)
+    container = bmp.read()
+    bmp.close()
+
+    decrypted = []
+    for b in decrypt_char(container):
+        decrypted.append(b)
+        # Определение, что в заданном изображении есть файл
+        if (len(marker) == len(decrypted) and
+            marker != ''.join(decrypted)):
+            raise ErrorException('The image does not contain '
+                                   'confidential file.')
+    if len(decrypted) > len(marker):
+        # Список ['', 'source file name', 'source file data', '']
+        decrypted = ''.join(decrypted).split(marker)
+        src_filename = decrypted[1]
+        src_data = decrypted[2]
+        src = open(src_filename, 'wb')
+        src.write(src_data)
+        src.close()
+
+import argparse
+parser=argparse.ArgumentParser(description='lab3')
+        
+def main():
+    parser.add_argument('-i',type=str, help='Input file name',required=True)
+    parser.add_argument('-o',type=str,help='File name you want to hide')
+    parser.add_argument('-e',action="store_true",help='Encryption',default = False)
+    parser.add_argument('-d',action="store_true",help='Decryption',default = False)
+    args = parser.parse_args()
+    if args.e and len(av)!=6:
+    	print 'Usage 1.py [input file name] [hide file name] -e'
+    if args.d and len(av)!=4:
+    	print 'Usage 1.py [input file name with hide file] -d'
+    if args.e==False and args.d==False:
+		print 'Usage -e or -d'
+		return 1
+    if args.e and len(av) == 6:
+		hide(format(args.i),format(args.o))
+		return 1
+    if args.d and len(av) == 4:
+		extract(format(args.i))
+		return 1
+
 
 if __name__ == '__main__':
-    sys.exit(main())
+    from sys import argv as av
+    main()
